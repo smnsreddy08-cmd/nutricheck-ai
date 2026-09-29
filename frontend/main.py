@@ -173,80 +173,84 @@ def _get_role_user():
 
 @app.post("/chat")
 async def chat(req: Request):
-    body = await req.json()
-    message = body.get("message", "")
-    user_id = body.get("user_id") or "web-user"
-    parts: list[dict] = []
+    try:
+        body = await req.json()
+        message = body.get("message", "")
+        user_id = body.get("user_id") or "web-user"
+        parts: list[dict] = []
 
-    async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
-        config = ClientConfig(httpx_client=client)
-        if hasattr(ClientFactory, "connect"):
-            try:
-                a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
-            except Exception:
+        async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
+            config = ClientConfig(httpx_client=client)
+            if hasattr(ClientFactory, "connect"):
+                try:
+                    a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
+                except Exception:
+                    card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
+                    factory = ClientFactory(config)
+                    if hasattr(factory, "_registry") and factory._registry:
+                        factory.register("JSONRPC", list(factory._registry.values())[0])
+                    a2a_client = factory.create(card)
+            else:
                 card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
                 factory = ClientFactory(config)
                 if hasattr(factory, "_registry") and factory._registry:
                     factory.register("JSONRPC", list(factory._registry.values())[0])
                 a2a_client = factory.create(card)
-        else:
-            card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
-            factory = ClientFactory(config)
-            if hasattr(factory, "_registry") and factory._registry:
-                factory.register("JSONRPC", list(factory._registry.values())[0])
-            a2a_client = factory.create(card)
 
-        setattr(a2a_client, "configuration", config)
-        setattr(a2a_client, "config", config)
+            setattr(a2a_client, "configuration", config)
+            setattr(a2a_client, "config", config)
 
-        user_part = _make_part(message)
+            user_part = _make_part(message)
 
-        roles_to_try = []
-        if Role is not None:
-            if hasattr(Role, "user"):
-                roles_to_try.append(Role.user)
-            if hasattr(Role, "USER"):
-                roles_to_try.append(getattr(Role, "USER"))
-            if hasattr(Role, "ROLE_USER"):
-                roles_to_try.append(getattr(Role, "ROLE_USER"))
-        roles_to_try.extend([1, "ROLE_USER", "USER", "user"])
+            roles_to_try = []
+            if Role is not None:
+                if hasattr(Role, "user"):
+                    roles_to_try.append(Role.user)
+                if hasattr(Role, "USER"):
+                    roles_to_try.append(getattr(Role, "USER"))
+                if hasattr(Role, "ROLE_USER"):
+                    roles_to_try.append(getattr(Role, "ROLE_USER"))
+            roles_to_try.extend([1, "ROLE_USER", "USER", "user"])
 
-        last_task = None
-        got_artifact_update = False
+            last_task = None
+            got_artifact_update = False
 
-        for r in roles_to_try:
-            try:
-                msg = Message(
-                    message_id=str(uuid.uuid4()),
-                    role=r,
-                    parts=[user_part],
-                    context_id=_contexts.get(user_id),
-                )
-                async for event in a2a_client.send_message(msg):
-                    if not isinstance(event, tuple):
+            for r in roles_to_try:
+                try:
+                    msg = Message(
+                        message_id=str(uuid.uuid4()),
+                        role=r,
+                        parts=[user_part],
+                        context_id=_contexts.get(user_id),
+                    )
+                    async for event in a2a_client.send_message(msg):
+                        if not isinstance(event, tuple):
+                            continue
+                        task, update = event
+                        if task:
+                            last_task = task
+                            if getattr(task, "context_id", None):
+                                _contexts[user_id] = task.context_id
+                        if update:
+                            if TaskArtifactUpdateEvent is not None and isinstance(update, TaskArtifactUpdateEvent):
+                                got_artifact_update = True
+                                artifact = getattr(update, "artifact", None)
+                                parts_list = getattr(artifact, "parts", None) if artifact else None
+                                if parts_list:
+                                    parts.extend(_extract_parts(parts_list))
+                    break
+                except Exception as ex:
+                    err_str = str(ex)
+                    if "unknown enum label" in err_str or "Role" in err_str or "role" in err_str:
                         continue
-                    task, update = event
-                    if task:
-                        last_task = task
-                        if getattr(task, "context_id", None):
-                            _contexts[user_id] = task.context_id
-                    if update:
-                        if TaskArtifactUpdateEvent is not None and isinstance(update, TaskArtifactUpdateEvent):
-                            got_artifact_update = True
-                            artifact = getattr(update, "artifact", None)
-                            parts_list = getattr(artifact, "parts", None) if artifact else None
-                            if parts_list:
-                                parts.extend(_extract_parts(parts_list))
-                break
-            except Exception as ex:
-                err_str = str(ex)
-                if "unknown enum label" in err_str or "Role" in err_str or "role" in err_str:
-                    continue
-                raise ex
+                    raise ex
 
-        if not parts:
-            parts = [{"kind": "text", "text": "(The agent didn't return a reply.)"}]
-        return JSONResponse({"parts": parts})
+            if not parts:
+                parts = [{"kind": "text", "text": "(The agent didn't return a reply.)"}]
+            return JSONResponse({"parts": parts})
+    except Exception as ex:
+        import traceback
+        return JSONResponse({"parts": [{"kind": "text", "text": f"Error: {type(ex).__name__}: {ex}\n{traceback.format_exc()}"}]})
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
