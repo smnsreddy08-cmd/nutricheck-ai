@@ -146,15 +146,7 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
-        factory = ClientFactory(
-            ClientConfig(
-                supported_transports=[
-                    TransportProtocol.jsonrpc,
-                    TransportProtocol.http_json,
-                ],
-                httpx_client=client,
-            )
-        )
+        factory = ClientFactory(ClientConfig(httpx_client=client))
         a2a_client = factory.create(card)
 
         msg = Message(
