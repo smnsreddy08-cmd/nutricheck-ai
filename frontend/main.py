@@ -166,11 +166,8 @@ def _extract_parts(parts: list) -> list[dict]:
 
 
 def _get_role_user():
-    if Role is not None and hasattr(Role, "__members__"):
-        m = Role.__members__
-        val = m.get("user") or m.get("USER") or m.get("ROLE_USER")
-        if val is not None:
-            return val
+    if Role is not None and hasattr(Role, "user"):
+        return Role.user
     return "user"
 
 
