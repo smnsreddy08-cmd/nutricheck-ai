@@ -198,30 +198,48 @@ async def chat(req: Request):
 
         user_part = _make_part(message)
 
-        msg = Message(
-            message_id=str(uuid.uuid4()),
-            role=_get_role_user(),
-            parts=[user_part],
-            context_id=_contexts.get(user_id),
-        )
+        roles_to_try = []
+        if Role is not None:
+            if hasattr(Role, "user"):
+                roles_to_try.append(Role.user)
+            if hasattr(Role, "USER"):
+                roles_to_try.append(getattr(Role, "USER"))
+            if hasattr(Role, "ROLE_USER"):
+                roles_to_try.append(getattr(Role, "ROLE_USER"))
+        roles_to_try.extend([1, "ROLE_USER", "USER", "user"])
 
         last_task = None
         got_artifact_update = False
-        async for event in a2a_client.send_message(msg):
-            if not isinstance(event, tuple):
-                continue
-            task, update = event
-            if task:
-                last_task = task
-                if getattr(task, "context_id", None):
-                    _contexts[user_id] = task.context_id
-            if update:
-                if TaskArtifactUpdateEvent is not None and isinstance(update, TaskArtifactUpdateEvent):
-                    got_artifact_update = True
-                    artifact = getattr(update, "artifact", None)
-                    parts_list = getattr(artifact, "parts", None) if artifact else None
-                    if parts_list:
-                        parts.extend(_extract_parts(parts_list))
+
+        for r in roles_to_try:
+            try:
+                msg = Message(
+                    message_id=str(uuid.uuid4()),
+                    role=r,
+                    parts=[user_part],
+                    context_id=_contexts.get(user_id),
+                )
+                async for event in a2a_client.send_message(msg):
+                    if not isinstance(event, tuple):
+                        continue
+                    task, update = event
+                    if task:
+                        last_task = task
+                        if getattr(task, "context_id", None):
+                            _contexts[user_id] = task.context_id
+                    if update:
+                        if TaskArtifactUpdateEvent is not None and isinstance(update, TaskArtifactUpdateEvent):
+                            got_artifact_update = True
+                            artifact = getattr(update, "artifact", None)
+                            parts_list = getattr(artifact, "parts", None) if artifact else None
+                            if parts_list:
+                                parts.extend(_extract_parts(parts_list))
+                break
+            except Exception as ex:
+                err_str = str(ex)
+                if "unknown enum label" in err_str or "Role" in err_str or "role" in err_str:
+                    continue
+                raise ex
 
         if not parts:
             parts = [{"kind": "text", "text": "(The agent didn't return a reply.)"}]
