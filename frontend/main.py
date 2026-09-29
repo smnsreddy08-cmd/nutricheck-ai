@@ -196,6 +196,9 @@ async def chat(req: Request):
                 factory.register("JSONRPC", list(factory._registry.values())[0])
             a2a_client = factory.create(card)
 
+        setattr(a2a_client, "configuration", config)
+        setattr(a2a_client, "config", config)
+
         user_part = _make_part(message)
 
         roles_to_try = []
