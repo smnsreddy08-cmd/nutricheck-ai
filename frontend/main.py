@@ -165,6 +165,19 @@ def _extract_parts(parts: list) -> list[dict]:
     return out
 
 
+def _get_role_user():
+    if Role is not None:
+        if hasattr(Role, "USER"):
+            return Role.USER
+        if hasattr(Role, "user"):
+            return Role.user
+        try:
+            return Role("user")
+        except Exception:
+            pass
+    return "user"
+
+
 @app.post("/chat")
 async def chat(req: Request):
     body = await req.json()
@@ -194,7 +207,7 @@ async def chat(req: Request):
 
         msg = Message(
             message_id=str(uuid.uuid4()),
-            role=Role.user,
+            role=_get_role_user(),
             parts=[user_part],
             context_id=_contexts.get(user_id),
         )
