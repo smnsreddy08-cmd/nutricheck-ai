@@ -203,17 +203,19 @@ async def chat(req: Request):
             orig_apply = getattr(a2a_client, "_apply_client_config", None)
             if orig_apply:
                 def safe_apply(request):
+                    try:
+                        has_config = hasattr(request, "configuration")
+                    except Exception:
+                        has_config = False
+                    if not has_config:
+                        return
                     if getattr(request, "configuration", None) is None:
-                        config_cls = getattr(types, "MessageSendConfiguration", None)
-                        if config_cls:
-                            try:
-                                request.configuration = config_cls()
-                            except Exception:
-                                pass
-                        if getattr(request, "configuration", None) is None:
-                            class DummyConfig:
-                                return_immediately = False
+                        class DummyConfig:
+                            return_immediately = False
+                        try:
                             request.configuration = DummyConfig()
+                        except Exception:
+                            pass
                     try:
                         return orig_apply(request)
                     except Exception:
