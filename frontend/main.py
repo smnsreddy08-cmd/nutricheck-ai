@@ -107,26 +107,10 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     resp = await client.get(A2A_CARD_URL)
     resp.raise_for_status()
     data = resp.json()
-
-    pref = TransportProtocol.jsonrpc if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc") else "JSONRPC"
-
-    try:
-        return AgentCard(
-            name=data.get("name", "root_agent"),
-            description=data.get("description", "An ADK Agent"),
-            version=data.get("version", "0.1.0"),
-            protocol_version=data.get("protocolVersion") or data.get("protocol_version") or "0.3.0",
-            preferred_transport=pref,
-            default_input_modes=data.get("defaultInputModes") or data.get("default_input_modes") or ["text/plain"],
-            default_output_modes=data.get("defaultOutputModes") or data.get("default_output_modes") or ["text/plain"],
-            capabilities=data.get("capabilities") or {"streaming": True},
-            skills=data.get("skills") or [],
-            url=A2A_BASE,
-        )
-    except Exception:
-        data["url"] = A2A_BASE
-        data["preferred_transport"] = pref
-        return _parse_agent_card(data)
+    data["url"] = A2A_BASE
+    if hasattr(AgentCard, "model_validate"):
+        return AgentCard.model_validate(data)
+    return _parse_agent_card(data)
 
 
 def _extract_parts(parts: list) -> list[dict]:
