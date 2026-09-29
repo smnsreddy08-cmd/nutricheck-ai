@@ -10,6 +10,7 @@ structured parts the chat UI knows how to show:
     surfaceUpdate); static/index.html renders these as a card.
 """
 
+import json
 import os
 import uuid
 
