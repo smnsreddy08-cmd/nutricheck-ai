@@ -84,12 +84,13 @@ _contexts: dict[str, str] = {}
 _card: AgentCard | None = None
 
 
-def _parse_agent_card(data: dict, text: str) -> AgentCard:
+def _parse_agent_card(data: dict) -> AgentCard:
     if hasattr(AgentCard, "model_validate"):
         try:
             return AgentCard.model_validate(data)
         except Exception:
             pass
+    text = json.dumps(data)
     if hasattr(AgentCard, "model_validate_json"):
         try:
             return AgentCard.model_validate_json(text)
@@ -107,16 +108,12 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     resp.raise_for_status()
     data = resp.json()
     data["url"] = A2A_BASE
-    card = _parse_agent_card(data, json.dumps(data))
-    try:
-        object.__setattr__(card, "url", A2A_BASE)
-    except Exception:
-        pass
+    if "preferredTransport" in data:
+        data["preferred_transport"] = data["preferredTransport"]
+    card = _parse_agent_card(data)
+    object.__setattr__(card, "url", A2A_BASE)
     if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-        try:
-            object.__setattr__(card, "preferred_transport", TransportProtocol.jsonrpc)
-        except Exception:
-            pass
+        object.__setattr__(card, "preferred_transport", TransportProtocol.jsonrpc)
     return card
 
 
