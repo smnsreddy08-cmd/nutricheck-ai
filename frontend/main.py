@@ -111,9 +111,9 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     if "preferredTransport" in data:
         data["preferred_transport"] = data["preferredTransport"]
     card = _parse_agent_card(data)
-    object.__setattr__(card, "url", A2A_BASE)
+    card.__dict__["url"] = A2A_BASE
     if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-        object.__setattr__(card, "preferred_transport", TransportProtocol.jsonrpc)
+        card.__dict__["preferred_transport"] = TransportProtocol.jsonrpc
     return card
 
 
@@ -145,15 +145,9 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
-        try:
-            object.__setattr__(card, "url", A2A_BASE)
-        except Exception:
-            pass
+        card.__dict__["url"] = A2A_BASE
         if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-            try:
-                object.__setattr__(card, "preferred_transport", TransportProtocol.jsonrpc)
-            except Exception:
-                pass
+            card.__dict__["preferred_transport"] = TransportProtocol.jsonrpc
         factory = ClientFactory(ClientConfig(httpx_client=client))
         a2a_client = factory.create(card)
 
