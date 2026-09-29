@@ -150,24 +150,8 @@ async def chat(req: Request):
     parts: list[dict] = []
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
-        card = await _get_card(client)
         config = ClientConfig(httpx_client=client)
-
-        tp = None
-        if TransportProtocol is not None:
-            tp = getattr(TransportProtocol, "JSONRPC", None) or getattr(TransportProtocol, "jsonrpc", None)
-
-        if tp:
-            config.supported_transports = [tp, "JSONRPC", "jsonrpc"]
-        else:
-            config.supported_transports = ["JSONRPC", "jsonrpc"]
-
-        factory = ClientFactory(config)
-        if tp and hasattr(factory, "_registry") and tp in factory._registry:
-            factory.register("JSONRPC", factory._registry[tp])
-            factory.register("jsonrpc", factory._registry[tp])
-
-        a2a_client = factory.create(card)
+        a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
 
         if TextPart is not None:
             user_part = Part(root=TextPart(text=message))
