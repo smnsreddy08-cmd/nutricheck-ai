@@ -181,16 +181,9 @@ async def chat(req: Request):
 
         async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
             config = ClientConfig(httpx_client=client)
-            if hasattr(ClientFactory, "connect"):
-                try:
-                    a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
-                except Exception:
-                    card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
-                    factory = ClientFactory(config)
-                    if hasattr(factory, "_registry") and factory._registry:
-                        factory.register("JSONRPC", list(factory._registry.values())[0])
-                    a2a_client = factory.create(card)
-            else:
+            try:
+                a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
+            except Exception:
                 card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
                 factory = ClientFactory(config)
                 if hasattr(factory, "_registry") and factory._registry:
