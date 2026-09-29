@@ -123,6 +123,29 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     return card
 
 
+def _make_part(message: str):
+    if Part is not None and TextPart is not None:
+        try:
+            return Part(root=TextPart(text=message))
+        except Exception:
+            pass
+    if Part is not None:
+        try:
+            return Part(root={"text": message})
+        except Exception:
+            pass
+        try:
+            return Part(text=message)
+        except Exception:
+            pass
+    if TextPart is not None:
+        try:
+            return TextPart(text=message)
+        except Exception:
+            pass
+    return {"text": message}
+
+
 def _extract_parts(parts: list) -> list[dict]:
     out: list[dict] = []
     for p in parts:
@@ -167,10 +190,7 @@ async def chat(req: Request):
                 factory.register("JSONRPC", list(factory._registry.values())[0])
             a2a_client = factory.create(card)
 
-        if TextPart is not None:
-            user_part = Part(root=TextPart(text=message))
-        else:
-            user_part = Part(root={"text": message})
+        user_part = _make_part(message)
 
         msg = Message(
             message_id=str(uuid.uuid4()),
