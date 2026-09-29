@@ -107,6 +107,18 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     resp.raise_for_status()
     data = resp.json()
     data["url"] = A2A_BASE
+    if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
+        data["preferred_transport"] = TransportProtocol.jsonrpc
+    else:
+        data["preferred_transport"] = "JSONRPC"
+
+    if "protocolVersion" in data:
+        data["protocol_version"] = data["protocolVersion"]
+    if "defaultInputModes" in data:
+        data["default_input_modes"] = data["defaultInputModes"]
+    if "defaultOutputModes" in data:
+        data["default_output_modes"] = data["defaultOutputModes"]
+
     if hasattr(AgentCard, "model_validate"):
         return AgentCard.model_validate(data)
     return _parse_agent_card(data)
@@ -140,9 +152,8 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
-        pref = getattr(card, "preferred_transport", None)
-        url = getattr(card, "url", None)
-        return JSONResponse({"parts": [{"kind": "text", "text": f"DEBUG: pref={repr(pref)} ({type(pref)}), url={repr(url)} ({type(url)}), card={repr(card)}"}]})
+        factory = ClientFactory(ClientConfig(httpx_client=client))
+        a2a_client = factory.create(card)
 
         if TextPart is not None:
             user_part = Part(root=TextPart(text=message))
@@ -162,21 +173,21 @@ async def chat(req: Request):
             if not isinstance(event, tuple):
                 continue
             task, update = event
-            if task is not None:
+            if task:
                 last_task = task
                 if getattr(task, "context_id", None):
                     _contexts[user_id] = task.context_id
-            if isinstance(update, TaskArtifactUpdateEvent):
-                got_artifact_update = True
-                parts.extend(_extract_parts(update.artifact.parts))
+            if update:
+                if TaskArtifactUpdateEvent is not None and isinstance(update, TaskArtifactUpdateEvent):
+                    got_artifact_update = True
+                    artifact = getattr(update, "artifact", None)
+                    parts_list = getattr(artifact, "parts", None) if artifact else None
+                    if parts_list:
+                        parts.extend(_extract_parts(parts_list))
 
-        if not got_artifact_update and last_task is not None:
-            for artifact in getattr(last_task, "artifacts", None) or []:
-                parts.extend(_extract_parts(artifact.parts))
-
-    if not parts:
-        parts = [{"kind": "text", "text": "(The agent didn't return a reply.)"}]
-    return JSONResponse({"parts": parts})
+        if not parts:
+            parts = [{"kind": "text", "text": "(The agent didn't return a reply.)"}]
+        return JSONResponse({"parts": parts})
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
