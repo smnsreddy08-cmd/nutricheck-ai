@@ -17,15 +17,16 @@ import uuid
 import google.auth
 import google.auth.transport.requests
 import httpx
-from a2a.types import (
-    AgentCard,
-    Message,
-    Part,
-    Role,
-    TaskArtifactUpdateEvent,
-    TextPart,
-    TransportProtocol,
-)
+from a2a.client import ClientConfig, ClientFactory
+import a2a.types as types
+
+AgentCard = getattr(types, "AgentCard", None)
+Message = getattr(types, "Message", None)
+Part = getattr(types, "Part", None)
+Role = getattr(types, "Role", None)
+TaskArtifactUpdateEvent = getattr(types, "TaskArtifactUpdateEvent", None)
+TextPart = getattr(types, "TextPart", None)
+TransportProtocol = getattr(types, "TransportProtocol", None)
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -140,17 +141,28 @@ async def chat(req: Request):
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
         config = ClientConfig(httpx_client=client)
-        config.supported_transports = ["JSONRPC", "jsonrpc", TransportProtocol.jsonrpc]
-        factory = ClientFactory(config)
-        if TransportProtocol.jsonrpc in factory._registry:
-            factory.register("JSONRPC", factory._registry[TransportProtocol.jsonrpc])
-            factory.register("jsonrpc", factory._registry[TransportProtocol.jsonrpc])
+
+        if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
+            jsonrpc_enum = TransportProtocol.jsonrpc
+            config.supported_transports = ["JSONRPC", "jsonrpc", jsonrpc_enum]
+            factory = ClientFactory(config)
+            if hasattr(factory, "_registry") and jsonrpc_enum in factory._registry:
+                factory.register("JSONRPC", factory._registry[jsonrpc_enum])
+                factory.register("jsonrpc", factory._registry[jsonrpc_enum])
+        else:
+            factory = ClientFactory(config)
+
         a2a_client = factory.create(card)
+
+        if TextPart is not None:
+            user_part = Part(root=TextPart(text=message))
+        else:
+            user_part = Part(root={"text": message})
 
         msg = Message(
             message_id=str(uuid.uuid4()),
             role=Role.user,
-            parts=[Part(root=TextPart(text=message))],
+            parts=[user_part],
             context_id=_contexts.get(user_id),
         )
 
