@@ -114,15 +114,6 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
             setattr(card, "url", A2A_BASE)
         except Exception:
             pass
-        pref = getattr(card, "preferred_transport", None)
-        if isinstance(pref, str) and TransportProtocol is not None:
-            try:
-                if hasattr(TransportProtocol, pref.lower()):
-                    setattr(card, "preferred_transport", getattr(TransportProtocol, pref.lower()))
-                elif hasattr(TransportProtocol, pref.upper()):
-                    setattr(card, "preferred_transport", getattr(TransportProtocol, pref.upper()))
-            except Exception:
-                pass
         _card = card
     return _card
 
@@ -155,27 +146,7 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
-        transports = ["JSONRPC", "jsonrpc"]
-        pref = getattr(card, "preferred_transport", None)
-        if pref:
-            transports.insert(0, pref)
-        if TransportProtocol and hasattr(TransportProtocol, "jsonrpc"):
-            transports.append(TransportProtocol.jsonrpc)
-
-        config = ClientConfig(httpx_client=client)
-        if hasattr(config, "supported_transports"):
-            try:
-                setattr(config, "supported_transports", transports)
-            except Exception:
-                pass
-        factory = ClientFactory(config)
-        try:
-            from a2a.client.transports.jsonrpc import JsonRpcTransport
-            factory.register("JSONRPC", lambda c, u, cfg, ic: JsonRpcTransport(cfg.httpx_client or client, c, u, ic, cfg.extensions or None))
-            factory.register("jsonrpc", lambda c, u, cfg, ic: JsonRpcTransport(cfg.httpx_client or client, c, u, ic, cfg.extensions or None))
-        except Exception:
-            pass
-
+        factory = ClientFactory(ClientConfig(httpx_client=client))
         a2a_client = factory.create(card)
 
         msg = Message(
