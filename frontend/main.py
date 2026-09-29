@@ -103,28 +103,25 @@ def _parse_agent_card(data: dict, text: str) -> AgentCard:
 
 
 async def _get_card(client: httpx.AsyncClient) -> AgentCard:
-    global _card
-    if _card is None:
-        resp = await client.get(A2A_CARD_URL)
-        resp.raise_for_status()
-        data = resp.json()
-        data["url"] = A2A_BASE
-        if "preferredTransport" in data:
-            data["preferred_transport"] = data.pop("preferredTransport")
-        if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-            data["preferred_transport"] = TransportProtocol.jsonrpc
-        card = _parse_agent_card(data, json.dumps(data))
+    resp = await client.get(A2A_CARD_URL)
+    resp.raise_for_status()
+    data = resp.json()
+    data["url"] = A2A_BASE
+    if "preferredTransport" in data:
+        data["preferred_transport"] = data.pop("preferredTransport")
+    if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
+        data["preferred_transport"] = TransportProtocol.jsonrpc
+    card = _parse_agent_card(data, json.dumps(data))
+    try:
+        setattr(card, "url", A2A_BASE)
+    except Exception:
+        pass
+    if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
         try:
-            setattr(card, "url", A2A_BASE)
+            setattr(card, "preferred_transport", TransportProtocol.jsonrpc)
         except Exception:
             pass
-        if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-            try:
-                setattr(card, "preferred_transport", TransportProtocol.jsonrpc)
-            except Exception:
-                pass
-        _card = card
-    return _card
+    return card
 
 
 def _extract_parts(parts: list) -> list[dict]:
@@ -161,7 +158,12 @@ async def chat(req: Request):
             except Exception:
                 pass
         factory = ClientFactory(ClientConfig(httpx_client=client))
-        a2a_client = factory.create(card)
+        try:
+            a2a_client = factory.create(card)
+        except Exception as ex:
+            pref = getattr(card, "preferred_transport", None)
+            url = getattr(card, "url", None)
+            return JSONResponse({"parts": [{"kind": "text", "text": f"Error: {type(ex).__name__}: {ex} (card pref: {repr(pref)}, url: {repr(url)})"}]})
 
         msg = Message(
             message_id=str(uuid.uuid4()),
