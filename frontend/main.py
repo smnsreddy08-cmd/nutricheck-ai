@@ -114,6 +114,15 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
             setattr(card, "url", A2A_BASE)
         except Exception:
             pass
+        pref = getattr(card, "preferred_transport", None)
+        if isinstance(pref, str) and TransportProtocol is not None:
+            try:
+                if hasattr(TransportProtocol, pref.lower()):
+                    setattr(card, "preferred_transport", getattr(TransportProtocol, pref.lower()))
+                elif hasattr(TransportProtocol, pref.upper()):
+                    setattr(card, "preferred_transport", getattr(TransportProtocol, pref.upper()))
+            except Exception:
+                pass
         _card = card
     return _card
 
