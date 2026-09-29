@@ -107,21 +107,18 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     resp.raise_for_status()
     data = resp.json()
     data["url"] = A2A_BASE
-    if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-        data["preferred_transport"] = TransportProtocol.jsonrpc
-    else:
-        data["preferred_transport"] = "JSONRPC"
-
-    if "protocolVersion" in data:
-        data["protocol_version"] = data["protocolVersion"]
-    if "defaultInputModes" in data:
-        data["default_input_modes"] = data["defaultInputModes"]
-    if "defaultOutputModes" in data:
-        data["default_output_modes"] = data["defaultOutputModes"]
 
     if hasattr(AgentCard, "model_validate"):
-        return AgentCard.model_validate(data)
-    return _parse_agent_card(data)
+        card = AgentCard.model_validate(data)
+    else:
+        card = _parse_agent_card(data)
+
+    object.__setattr__(card, "url", A2A_BASE)
+    if TransportProtocol is not None:
+        tp = getattr(TransportProtocol, "JSONRPC", None) or getattr(TransportProtocol, "jsonrpc", None)
+        if tp:
+            object.__setattr__(card, "preferred_transport", tp)
+    return card
 
 
 def _extract_parts(parts: list) -> list[dict]:
@@ -152,32 +149,23 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
+        object.__setattr__(card, "url", A2A_BASE)
+        tp = None
+        if TransportProtocol is not None:
+            tp = getattr(TransportProtocol, "JSONRPC", None) or getattr(TransportProtocol, "jsonrpc", None)
+            if tp:
+                object.__setattr__(card, "preferred_transport", tp)
+
         config = ClientConfig(httpx_client=client)
-        if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-            config.supported_transports = ["JSONRPC", "jsonrpc", TransportProtocol.jsonrpc]
-        else:
-            config.supported_transports = ["JSONRPC", "jsonrpc"]
+        if tp:
+            config.supported_transports = [tp, "JSONRPC", "jsonrpc"]
 
         factory = ClientFactory(config)
-        handler = None
-        if hasattr(factory, "_registry") and factory._registry:
-            if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
-                handler = factory._registry.get(TransportProtocol.jsonrpc)
-            if not handler and len(factory._registry) > 0:
-                handler = list(factory._registry.values())[0]
+        if tp and hasattr(factory, "_registry") and tp in factory._registry:
+            factory.register("JSONRPC", factory._registry[tp])
+            factory.register("jsonrpc", factory._registry[tp])
 
-        if handler:
-            factory.register("JSONRPC", handler)
-            factory.register("jsonrpc", handler)
-
-        try:
-            a2a_client = factory.create(card)
-        except Exception as ex:
-            reg_keys = [repr(k) for k in factory._registry.keys()] if hasattr(factory, "_registry") else []
-            supp = repr(getattr(config, "supported_transports", None))
-            card_pref = repr(getattr(card, "preferred_transport", None))
-            card_url = repr(getattr(card, "url", None))
-            return JSONResponse({"parts": [{"kind": "text", "text": f"Error: {type(ex).__name__}: {ex} (card pref={card_pref}, url={card_url}; registry={reg_keys}; supp={supp})"}]})
+        a2a_client = factory.create(card)
 
         if TextPart is not None:
             user_part = Part(root=TextPart(text=message))
