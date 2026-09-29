@@ -106,18 +106,20 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     resp = await client.get(A2A_CARD_URL)
     resp.raise_for_status()
     data = resp.json()
-    data["url"] = A2A_BASE
 
     if hasattr(AgentCard, "model_validate"):
         card = AgentCard.model_validate(data)
     else:
         card = _parse_agent_card(data)
 
-    object.__setattr__(card, "url", A2A_BASE)
+    tp = None
     if TransportProtocol is not None:
         tp = getattr(TransportProtocol, "JSONRPC", None) or getattr(TransportProtocol, "jsonrpc", None)
-        if tp:
-            object.__setattr__(card, "preferred_transport", tp)
+
+    if hasattr(card, "model_copy"):
+        card = card.model_copy(update={"url": A2A_BASE, "preferred_transport": tp or "JSONRPC"})
+    elif hasattr(card, "copy"):
+        card = card.copy(update={"url": A2A_BASE, "preferred_transport": tp or "JSONRPC"})
     return card
 
 
@@ -149,16 +151,16 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         card = await _get_card(client)
-        object.__setattr__(card, "url", A2A_BASE)
+        config = ClientConfig(httpx_client=client)
+
         tp = None
         if TransportProtocol is not None:
             tp = getattr(TransportProtocol, "JSONRPC", None) or getattr(TransportProtocol, "jsonrpc", None)
-            if tp:
-                object.__setattr__(card, "preferred_transport", tp)
 
-        config = ClientConfig(httpx_client=client)
         if tp:
             config.supported_transports = [tp, "JSONRPC", "jsonrpc"]
+        else:
+            config.supported_transports = ["JSONRPC", "jsonrpc"]
 
         factory = ClientFactory(config)
         if tp and hasattr(factory, "_registry") and tp in factory._registry:
