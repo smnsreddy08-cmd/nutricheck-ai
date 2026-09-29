@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.json
+!deployment_metadata.json
+!agents-cli-manifest.yaml
+.cache/
+demo_video/
+node_modules/
