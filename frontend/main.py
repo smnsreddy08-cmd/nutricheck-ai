@@ -193,6 +193,14 @@ async def chat(req: Request):
             setattr(a2a_client, "configuration", config)
             setattr(a2a_client, "config", config)
 
+            if hasattr(a2a_client, "_transport") and hasattr(a2a_client._transport, "_apply_interceptors"):
+                orig_interceptors = a2a_client._transport._apply_interceptors
+                async def safe_interceptors(method, payload, kwargs, context):
+                    if isinstance(payload, dict):
+                        payload["method"] = "message/send"
+                    return await orig_interceptors("message/send", payload, kwargs, context)
+                a2a_client._transport._apply_interceptors = safe_interceptors
+
             orig_apply = getattr(a2a_client, "_apply_client_config", None)
             if orig_apply:
                 def safe_apply(request):
