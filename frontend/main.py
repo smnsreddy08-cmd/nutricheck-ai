@@ -114,6 +114,11 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
             setattr(card, "url", A2A_BASE)
         except Exception:
             pass
+        if TransportProtocol is not None and hasattr(TransportProtocol, "jsonrpc"):
+            try:
+                setattr(card, "preferred_transport", TransportProtocol.jsonrpc)
+            except Exception:
+                pass
         _card = card
     return _card
 
