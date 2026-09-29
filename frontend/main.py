@@ -106,8 +106,13 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     if _card is None:
         resp = await client.get(A2A_CARD_URL)
         resp.raise_for_status()
-        card = _parse_agent_card(resp.json(), resp.text)
-        card.url = A2A_BASE
+        data = resp.json()
+        data["url"] = A2A_BASE
+        card = _parse_agent_card(data, json.dumps(data))
+        try:
+            setattr(card, "url", A2A_BASE)
+        except Exception:
+            pass
         _card = card
     return _card
 
