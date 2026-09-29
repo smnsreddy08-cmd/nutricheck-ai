@@ -200,6 +200,26 @@ async def chat(req: Request):
             setattr(a2a_client, "configuration", config)
             setattr(a2a_client, "config", config)
 
+            orig_apply = getattr(a2a_client, "_apply_client_config", None)
+            if orig_apply:
+                def safe_apply(request):
+                    if getattr(request, "configuration", None) is None:
+                        config_cls = getattr(types, "MessageSendConfiguration", None)
+                        if config_cls:
+                            try:
+                                request.configuration = config_cls()
+                            except Exception:
+                                pass
+                        if getattr(request, "configuration", None) is None:
+                            class DummyConfig:
+                                return_immediately = False
+                            request.configuration = DummyConfig()
+                    try:
+                        return orig_apply(request)
+                    except Exception:
+                        pass
+                a2a_client._apply_client_config = safe_apply
+
             user_part = _make_part(message)
 
             roles_to_try = []
