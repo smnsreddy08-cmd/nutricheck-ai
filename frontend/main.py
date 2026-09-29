@@ -17,17 +17,15 @@ import uuid
 import google.auth
 import google.auth.transport.requests
 import httpx
-from a2a.client import ClientConfig, ClientFactory
-import importlib
-
-_a2a_types = importlib.import_module("a2a.types")
-AgentCard = getattr(_a2a_types, "AgentCard", None)
-Message = getattr(_a2a_types, "Message", None)
-Part = getattr(_a2a_types, "Part", None)
-Role = getattr(_a2a_types, "Role", None)
-TaskArtifactUpdateEvent = getattr(_a2a_types, "TaskArtifactUpdateEvent", None)
-TextPart = getattr(_a2a_types, "TextPart", None)
-TransportProtocol = getattr(_a2a_types, "TransportProtocol", None)
+from a2a.types import (
+    AgentCard,
+    Message,
+    Part,
+    Role,
+    TaskArtifactUpdateEvent,
+    TextPart,
+    TransportProtocol,
+)
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
