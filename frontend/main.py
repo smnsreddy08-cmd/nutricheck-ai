@@ -17,7 +17,7 @@ import uuid
 import google.auth
 import google.auth.transport.requests
 import httpx
-from a2a.client import ClientConfig, ClientFactory
+from a2a.client import ClientConfig, ClientFactory, minimal_agent_card
 import a2a.types as types
 
 AgentCard = getattr(types, "AgentCard", None)
@@ -151,7 +151,21 @@ async def chat(req: Request):
 
     async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
         config = ClientConfig(httpx_client=client)
-        a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
+        if hasattr(ClientFactory, "connect"):
+            try:
+                a2a_client = await ClientFactory.connect(A2A_BASE, client_config=config)
+            except Exception:
+                card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
+                factory = ClientFactory(config)
+                if hasattr(factory, "_registry") and factory._registry:
+                    factory.register("JSONRPC", list(factory._registry.values())[0])
+                a2a_client = factory.create(card)
+        else:
+            card = minimal_agent_card(A2A_BASE, transports=["JSONRPC"])
+            factory = ClientFactory(config)
+            if hasattr(factory, "_registry") and factory._registry:
+                factory.register("JSONRPC", list(factory._registry.values())[0])
+            a2a_client = factory.create(card)
 
         if TextPart is not None:
             user_part = Part(root=TextPart(text=message))
