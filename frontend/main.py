@@ -162,12 +162,13 @@ async def chat(req: Request):
         if TransportProtocol and hasattr(TransportProtocol, "jsonrpc"):
             transports.append(TransportProtocol.jsonrpc)
 
-        factory = ClientFactory(
-            ClientConfig(
-                supported_transports=transports,
-                httpx_client=client,
-            )
-        )
+        config = ClientConfig(httpx_client=client)
+        if hasattr(config, "supported_transports"):
+            try:
+                setattr(config, "supported_transports", transports)
+            except Exception:
+                pass
+        factory = ClientFactory(config)
         try:
             from a2a.client.transports.jsonrpc import JsonRpcTransport
             factory.register("JSONRPC", lambda c, u, cfg, ic: JsonRpcTransport(cfg.httpx_client or client, c, u, ic, cfg.extensions or None))
