@@ -25,10 +25,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .a2ui_utils import a2ui_callback
 
-# Hardcode GCP constants to avoid project-number issues on Agent Platform
-FIRESTORE_PROJECT_ID = "qwiklabs-gcp-01-60ae6014122e"
-GCS_BUCKET_NAME = "nutricheck-ai-assets-qwiklabs-gcp-01-60ae6014122e"
-MEMORY_BANK_ID = "7629148346300497920"
+# GCP Project constants for Firestore & Storage
+FIRESTORE_PROJECT_ID = os.environ.get("FIRESTORE_PROJECT_ID", "productinfo-69d4c")
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "nutricheck-ai-assets-qwiklabs-gcp-01-60ae6014122e")
+MEMORY_BANK_ID = os.environ.get("MEMORY_BANK_ID", "7629148346300497920")
 
 db = firestore.Client(project=FIRESTORE_PROJECT_ID)
 storage_client = storage.Client(project=FIRESTORE_PROJECT_ID)
