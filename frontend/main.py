@@ -170,7 +170,14 @@ async def chat(req: Request):
             factory.register("JSONRPC", handler)
             factory.register("jsonrpc", handler)
 
-        a2a_client = factory.create(card)
+        try:
+            a2a_client = factory.create(card)
+        except Exception as ex:
+            reg_keys = [repr(k) for k in factory._registry.keys()] if hasattr(factory, "_registry") else []
+            supp = repr(getattr(config, "supported_transports", None))
+            card_pref = repr(getattr(card, "preferred_transport", None))
+            card_url = repr(getattr(card, "url", None))
+            return JSONResponse({"parts": [{"kind": "text", "text": f"Error: {type(ex).__name__}: {ex} (card pref={card_pref}, url={card_url}; registry={reg_keys}; supp={supp})"}]})
 
         if TextPart is not None:
             user_part = Part(root=TextPart(text=message))
