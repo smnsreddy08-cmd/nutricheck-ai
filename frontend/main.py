@@ -247,9 +247,15 @@ async def chat(req: Request):
                         context_id=_contexts.get(user_id),
                     )
                     async for event in a2a_client.send_message(msg):
-                        if not isinstance(event, tuple):
-                            continue
-                        task, update = event
+                        task = None
+                        update = None
+                        if isinstance(event, tuple):
+                            task, update = event
+                        elif hasattr(event, "parts") or getattr(event, "kind", None) == "message":
+                            update = event
+                        else:
+                            task = event
+
                         if task:
                             last_task = task
                             if getattr(task, "context_id", None):
