@@ -168,14 +168,18 @@ def _extract_parts(parts: list) -> list[dict]:
 def _get_role_user():
     if Role is not None:
         if hasattr(Role, "USER"):
-            return Role.USER
+            return getattr(Role, "USER")
         if hasattr(Role, "user"):
-            return Role.user
+            return getattr(Role, "user")
+        try:
+            return Role("USER")
+        except Exception:
+            pass
         try:
             return Role("user")
         except Exception:
             pass
-    return "user"
+    return "USER"
 
 
 @app.post("/chat")
